@@ -2,15 +2,13 @@ const express =require('express');
 const app = express();
 const cors=require('cors');
 const jwt = require('jsonwebtoken');
+const { MongoClient, ServerApiVersion } = require('mongodb');
 
 //env port or 5000 port
 const PORT =  process.env.PORT || 5000;
-
 //middleware
 app.use(cors());
-
 app.use(express.json());
-
 require('dotenv').config();
 
 
@@ -30,9 +28,11 @@ const verifyJWT = (req, res, next) => {
       req.decoded = decoded;
       next();
     })
+    }
 
 
-const { MongoClient, ServerApiVersion } = require('mongodb');
+
+
 
 
 
@@ -57,19 +57,68 @@ async function run() {
           } 
       });
 
-      //find database
-      const artandcraft=client.db("artandcraft");
-
       //find collection
-       const classes=artandcraft.collection("classes");
+      const classesCollection=client.db("artandcraft").collection("classes");
+      const usersCollection = client.db("artandcraft").collection("users");
 
        //get all classes
          app.get('/classes',async(req,res)=>{
-            const query =classes.find();
+            const query =classesCollection.find();
             const allClasses=await query.toArray();
             res.json(allClasses);
         }
         )
+
+
+        //get all users
+        app.get('/users', async (req, res) => {
+            const result = await usersCollection.find().toArray();
+            res.send(result);
+        });
+    
+        app.post('/users', async (req, res) => {
+            const user = req.body;
+            console.log(user);
+            const query = { email: user.email }
+            const existingUser = await usersCollection.findOne(query);
+    
+            if (existingUser) {
+            return res.send({ message: 'User already exists' })
+            }
+    
+            const result = await usersCollection.insertOne(user);
+            res.send(result);
+        });
+
+
+        // route admin 
+
+        app.get('/users/admin/:email', async (req, res) => {
+            const email = req.params.email;
+      
+            if (req.decoded.email !== email) {
+              res.send({ admin: false })
+            }
+            const query = { email: email }
+            const user = await usersCollection.findOne(query);
+            const result = { admin: user?.role === 'admin' }
+            res.send(result);
+          })
+      
+          app.patch('/users/admin/:id', async (req, res) => {
+            const id = req.params.id;
+            console.log(id);
+            const filter = { _id: new ObjectId(id) };
+            const updateDoc = {
+              $set: {
+                role: 'admin'
+              },
+            };
+      
+            const result = await usersCollection.updateOne(filter, updateDoc);
+            res.send(result);
+      
+          })
 
 
   
@@ -90,5 +139,5 @@ app.get('/',(req,res)=>{
     res.send('Art Craft Server is running');
   })
   app.listen(PORT,()=>{
-      console.log(`Server is running on port ${PORT}`);
-  })
+    console.log(`Server is running on port ${PORT}`);
+}) 
