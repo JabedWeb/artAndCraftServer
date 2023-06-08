@@ -1,7 +1,8 @@
 const express =require('express');
 const app = express();
 const cors=require('cors');
-const e = require('express');
+const jwt = require('jsonwebtoken');
+
 //env port or 5000 port
 const PORT =  process.env.PORT || 5000;
 
@@ -12,6 +13,23 @@ app.use(express.json());
 
 require('dotenv').config();
 
+
+//verify token
+const verifyJWT = (req, res, next) => {
+    const authorization = req.headers.authorization;
+    if (!authorization) {
+      return res.status(401).send({ error: true, message: 'Unauthorized Access' });
+    }
+    // bearer token
+    const token = authorization.split(' ')[1];
+  
+    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+      if (err) {
+        return res.status(401).send({ error: true, message: 'Unauthorized Access' })
+      }
+      req.decoded = decoded;
+      next();
+    })
 
 
 const { MongoClient, ServerApiVersion } = require('mongodb');
