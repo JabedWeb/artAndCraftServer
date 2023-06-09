@@ -2,7 +2,7 @@ const express =require('express');
 const app = express();
 const cors=require('cors');
 const jwt = require('jsonwebtoken');
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
 //env port or 5000 port
 const PORT =  process.env.PORT || 5000;
@@ -63,12 +63,58 @@ async function run() {
       const cartCollection = client.db("artandcraft").collection("carts");
 
        //get all classes
-         app.get('/classes',async(req,res)=>{
-            const query =classesCollection.find();
-            const allClasses=await query.toArray();
-            res.json(allClasses);
-        }
-        )
+        //  app.get('/classes',async(req,res)=>{
+
+
+        //   const limit=parseInt(req.query.limit);
+        //   const EnrolledStudents="EnrolledStudents";
+        //     const query =classesCollection.find()
+        //     if(limit>0){
+        //       const allClasses=await query.sort({ [EnrolledStudents]: -1}).limit(limit).toArray();
+        //      return res.json(allClasses);
+        //     }
+
+        //     const allClasses=await query.toArray();
+        //     res.json(allClasses);
+        // }
+        // )
+
+        app.get('/classes', async (req, res) => {
+          try {
+            const limit = parseInt(req.query.limit);
+            console.log(req.query);
+        
+            const query = classesCollection.find();
+        
+            if (limit > 0) {
+              query.sort({ EnrolledStudents: -1 }).limit(limit);
+            }
+        
+            const allClasses = await query.toArray();
+        
+            const pipeline = [
+              { $group: { _id: "$instructor", totalEnrolledStudents: { $sum: "$EnrolledStudents" } } },
+              { $project: { _id: 0, instructor: "$_id", totalEnrolledStudents: 1 } },
+              { $sort: { totalEnrolledStudents: -1 } }
+            ];
+        
+            console.log('pipeline', pipeline);
+        
+            const result = await classesCollection.aggregate(pipeline).toArray();
+            console.log('result', result);
+        
+            res.json({
+              classes: allClasses,
+              popularInstructors: result
+            });
+          } catch (error) {
+            console.error(error);
+            res.status(500).json({ error: 'Internal server error' });
+          }
+        });
+        
+        
+        
 
         //post classes
         app.post('/classes', async (req, res) => {
@@ -76,16 +122,23 @@ async function run() {
             const result = await classesCollection.insertOne(classes);
             res.send(result);
         });
-        
+
 
 
         //get all users
         app.get('/users', async (req, res) => {
-
             const result = await usersCollection.find().toArray();
             res.send(result);
         });
-    
+
+        //get single user by email
+        app.get('/users/:email', async (req, res) => {
+            const email = req.params.email;
+            const query = { email: email }
+            const user = await usersCollection.findOne(query);
+            res.send(user);
+        });
+
         app.post('/users', async (req, res) => {
             const user = req.body;
             user.role = "student";
@@ -96,14 +149,10 @@ async function run() {
             if (existingUser) {
             return res.send({ message: 'User already exists' })
             }
-    
             const result = await usersCollection.insertOne(user);
             res.send(result);
         });
-
-
         // route admin 
-
         app.get('/users/admin/:email', async (req, res) => {
             const email = req.params.email;
       
@@ -145,13 +194,12 @@ async function run() {
       
             const result = await usersCollection.updateOne(filter, updateDoc);
             res.send(result);
-      
           })
 
 
-          //cart
+        //cart
 
-              // cart collection apis
+       // cart collection apis
         app.get('/carts', async (req, res) => {
         const email = req.query.email;
   
@@ -159,10 +207,10 @@ async function run() {
           res.send([]);
         }
   
-        const decodedEmail = req.decoded.email;
-        if (email !== decodedEmail) {
-          return res.status(403).send({ error: true, message: 'forbidden access' })
-        }
+        // const decodedEmail = req.decoded.email;
+        // if (email !== decodedEmail) {
+        //   return res.status(403).send({ error: true, message: 'forbidden access' })
+        // }
   
         const query = { email: email };
         const result = await cartCollection.find(query).toArray();
@@ -175,7 +223,12 @@ async function run() {
         res.send(result);
       })
 
-
+      app.delete('/carts/:id', async (req, res) => {
+        const id = req.params.id;
+        const query = { _id: new ObjectId(id) };
+        const result = await cartCollection.deleteOne(query);
+        res.send(result);
+      })
   
     // Send a ping to confirm a successful connection
     await client.db("admin").command({ ping: 1 });
