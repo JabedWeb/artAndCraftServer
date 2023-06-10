@@ -31,11 +31,6 @@ const verifyJWT = (req, res, next) => {
     }
 
 
-
-
-
-
-
 const uri = `mongodb+srv://${process.env.DB_USER}:${process.env.DB_PASS}@cluster0.lkb5wuy.mongodb.net/?retryWrites=true&w=majority`;
 
 // Create a MongoClient with a MongoClientOptions object to set the Stable API version
@@ -66,7 +61,7 @@ async function run() {
           const user=req.body;
           const token=jwt.sign(user,process.env.ACCESS_TOKEN_SECRET, 
              {expiresIn:'1h'});
-          res.send(token);
+          res.send({token});
         })
 
 
@@ -231,10 +226,10 @@ async function run() {
           res.send([]);
         }
   
-        // const decodedEmail = req.decoded.email;
-        // if (email !== decodedEmail) {
-        //   return res.status(403).send({ error: true, message: 'forbidden access' })
-        // }
+        const decodedEmail = req.decoded.email;
+        if (email !== decodedEmail) {
+          return res.status(403).send({ error: true, message: 'forbidden access' })
+        }
   
         const query = { email: email };
         const result = await cartCollection.find(query).toArray();
