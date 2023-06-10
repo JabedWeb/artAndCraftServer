@@ -62,25 +62,17 @@ async function run() {
       const usersCollection = client.db("artandcraft").collection("users");
       const cartCollection = client.db("artandcraft").collection("carts");
 
+        app.post('/jwt',(req,res)=>{
+          const user=req.body;
+          const token=jwt.sign(user,process.env.ACCESS_TOKEN_SECRET, 
+             {expiresIn:'1h'});
+          res.send(token);
+        })
+
+
+
        //get all classes
-        //  app.get('/classes',async(req,res)=>{
-
-
-        //   const limit=parseInt(req.query.limit);
-        //   const EnrolledStudents="EnrolledStudents";
-        //     const query =classesCollection.find()
-        //     if(limit>0){
-        //       const allClasses=await query.sort({ [EnrolledStudents]: -1}).limit(limit).toArray();
-        //      return res.json(allClasses);
-        //     }
-
-        //     const allClasses=await query.toArray();
-        //     res.json(allClasses);
-        // }
-        // )
-
         app.get('/classes', async (req, res) => {
-          try {
             const limit = parseInt(req.query.limit);
             console.log(req.query);
         
@@ -93,29 +85,41 @@ async function run() {
             const allClasses = await query.toArray();
         
             const pipeline = [
-              { $group: { _id: "$instructor", totalEnrolledStudents: { $sum: "$EnrolledStudents" } } },
-              { $project: { _id: 0, instructor: "$_id", totalEnrolledStudents: 1 } },
+              {
+                $group: {
+                  _id: "$email",
+                  totalEnrolledStudents: { $sum: "$EnrolledStudents" },
+                  image: { $first: "$image" },
+                  instructor: { $first: "$instructor" },
+                  classes: { $addToSet: "$name" }
+                }
+              },
+              {
+                $project: {
+                  _id: 0,
+                  email: "$_id",
+                  totalEnrolledStudents: 1,
+                  image: 1,
+                  instructor: 1,
+                  classes: 1
+                }
+              },
               { $sort: { totalEnrolledStudents: -1 } }
             ];
+            
+
         
-            console.log('pipeline', pipeline);
+            //console.log('pipeline', pipeline);
         
             const result = await classesCollection.aggregate(pipeline).toArray();
-            console.log('result', result);
+           // console.log('result', result);
         
             res.json({
               classes: allClasses,
               popularInstructors: result
             });
-          } catch (error) {
-            console.error(error);
-            res.status(500).json({ error: 'Internal server error' });
-          }
-        });
-        
-        
-        
-
+          })
+          
         //post classes
         app.post('/classes', async (req, res) => {
             const classes = req.body;
@@ -123,7 +127,28 @@ async function run() {
             res.send(result);
         });
 
+        //update single classes by id
+        app.patch('/classes/:id', async (req, res) => {
+            const id = req.params.id;
+            const filter = { _id: new ObjectId(id) };
+            const updateDoc = {};
+            console.log(req.body);
 
+            if (req.body.EnrolledStudents || req.body.availableSeats) {
+              updateDoc.$set = {
+                EnrolledStudents: req.body.EnrolledStudents,
+                availableSeats: req.body.availableSeats
+              };
+            }
+            if (req.body.status) {
+              updateDoc.$set = { status: req.body.status };
+            }
+
+
+            const result = await classesCollection.updateOne(filter, updateDoc);
+            console.log("updating",result);
+            res.send(result);
+          });
 
         //get all users
         app.get('/users', async (req, res) => {
@@ -142,7 +167,6 @@ async function run() {
         app.post('/users', async (req, res) => {
             const user = req.body;
             user.role = "student";
-            console.log(user);
             const query = { email: user.email }
             const existingUser = await usersCollection.findOne(query);
     
