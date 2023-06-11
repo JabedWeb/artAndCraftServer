@@ -365,7 +365,8 @@ async function run() {
       const query = {
         email: { $regex: new RegExp(email, 'i') }
       };
-      const result = await paymentCollection.find(query).toArray();
+      const sort = { date: -1 };
+      const result = await paymentCollection.find(query).sort(sort).toArray();
       res.send(result);
     })
 
