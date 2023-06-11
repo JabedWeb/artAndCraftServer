@@ -2,18 +2,23 @@ const express = require('express');
 const app = express();
 const cors = require('cors');
 const jwt = require('jsonwebtoken');
+require('dotenv').config();
+const stripe = require('stripe')(process.env.PAYMENT_SECRET_KEY)
 const {
   MongoClient,
   ServerApiVersion,
-  ObjectId
+  ObjectId 
 } = require('mongodb');
+
+console.log(process.env.PAYMENT_SECRET_KEY, "key");
+console.log(process.env.ACCESS_TOKEN_SECRET, "key");
+console.log(process.env.DB_PASS);
 
 //env port or 5000 port
 const PORT = process.env.PORT || 5000;
 //middleware
 app.use(cors());
 app.use(express.json());
-require('dotenv').config();
 
 
 //verify token
@@ -200,11 +205,12 @@ async function run() {
     });
 
     //get single user by email
-    app.get('/users/:email', verifyJWT, async (req, res) => {
+    app.get('/users/:email',verifyJWT, async (req, res) => {
       const email = req.params.email;
       const query = {
-        email: email
-      }
+        email: { $regex: new RegExp(email, 'i') }
+      };
+      console.log(query, "query");
       const user = await usersCollection.findOne(query);
       res.send(user);
     });
@@ -297,9 +303,8 @@ async function run() {
           message: 'forbidden access'
         })
       }
-
       const query = {
-        email: email
+        email: { $regex: new RegExp(email, 'i') }
       };
       const result = await cartCollection.find(query).toArray();
       res.send(result);
@@ -321,8 +326,10 @@ async function run() {
     })
 
     //payments collection apis
-    app.post('/create-payment-intent', verifyJWT, async (req, res) => {
+    app.post('/create-payment-intent',verifyJWT, async (req, res) => {
       const { price } = req.body;
+      console.log(price);
+      console.log(process.env.PAYMENT_SECRET_KEY, "key");
       const amount = parseInt(price * 100);
       const paymentIntent = await stripe.paymentIntents.create({
         amount: amount,
@@ -337,15 +344,31 @@ async function run() {
 
 
     // payment related api
-    app.post('/payments', verifyJWT, async (req, res) => {
+    app.post('/payments',verifyJWT, async (req, res) => {
       const payment = req.body;
       const insertResult = await paymentCollection.insertOne(payment);
-
-      const query = { _id: { $in: payment.cartItems.map(id => new ObjectId(id)) } }
-      const deleteResult = await cartCollection.deleteMany(query)
+      const query = {
+        _id: new ObjectId(payment.cartItem)
+      };
+      console.log(query, "query");
+     // const query = { _id: { $in: payment.cartItems.map(id => new ObjectId(id)) } }
+      const deleteResult = await cartCollection.deleteOne(query)
 
       res.send({ insertResult, deleteResult });
     })
+    app.get('/payments', async (req, res) => {
+      const email = req.query.email;
+
+      if (!email) {
+        res.send([]);
+      }
+      const query = {
+        email: { $regex: new RegExp(email, 'i') }
+      };
+      const result = await paymentCollection.find(query).toArray();
+      res.send(result);
+    })
+
 
 
 
