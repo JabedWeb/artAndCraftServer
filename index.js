@@ -141,6 +141,9 @@ async function run() {
             image: {
               $first: "$image"
             },
+            instructor_photo: {
+              $first: "$instructor_photo"
+            },
             instructor: {
               $first: "$instructor"
             },
@@ -155,6 +158,7 @@ async function run() {
             email: "$_id",
             totalEnrolledStudents: 1,
             image: 1,
+            instructor_photo: 1,
             instructor: 1,
             classes: 1
           }
