@@ -24,6 +24,7 @@ app.use(express.json());
 //verify token
 const verifyJWT = (req, res, next) => {
   const authorization = req.headers.authorization;
+  console.log(authorization);
   if (!authorization) {
     return res.status(401).send({
       error: true,
@@ -105,19 +106,33 @@ async function run() {
     //get all classes
     app.get('/classes', async (req, res) => {
       const limit = parseInt(req.query.limit);
+      const status = req.query.status;
+    
       console.log(req.query);
-
+    
       const query = classesCollection.find();
-
+    
       if (limit > 0) {
         query.sort({
           EnrolledStudents: -1
         }).limit(limit);
       }
-
+    
+      if (status && status === 'Approved') {
+        query.filter({
+          status: 'Approved'
+        });
+      }
+    
       const allClasses = await query.toArray();
-
-      const pipeline = [{
+    
+      const pipeline = [
+        {
+          $match: {
+            status: 'Approved'
+          }
+        },
+        {
           $group: {
             _id: "$email",
             totalEnrolledStudents: {
@@ -150,15 +165,15 @@ async function run() {
           }
         }
       ];
-
+    
       const result = await classesCollection.aggregate(pipeline).toArray();
-
+    
       res.json({
         classes: allClasses,
         popularInstructors: result
       });
     });
-
+    
 
     //post classes
     app.post('/classes', async (req, res) => {
@@ -192,6 +207,9 @@ async function run() {
           name: req.body.name
         };
       }
+      updateDoc.$set={
+        ...req.body
+      }
 
       const result = await classesCollection.updateOne(filter, updateDoc);
       console.log("updating", result);
@@ -201,14 +219,17 @@ async function run() {
     //get all users
     app.get('/users', async (req, res) => {
       const result = await usersCollection.find().toArray();
+      console.log(result, "result");
       res.send(result);
     });
 
     //get single user by email
-    app.get('/users/:email',verifyJWT, async (req, res) => {
+    app.get('/users/:email', async (req, res) => {
       const email = req.params.email;
+      console.log(email, "email");
+      // { $regex: new RegExp(email, 'i')
       const query = {
-        email: { $regex: new RegExp(email, 'i') }
+        email:email  
       };
       console.log(query, "query");
       const user = await usersCollection.findOne(query);
@@ -356,7 +377,7 @@ async function run() {
 
       res.send({ insertResult, deleteResult });
     })
-    app.get('/payments', async (req, res) => {
+    app.get('/payments',verifyJWT, async (req, res) => {
       const email = req.query.email;
 
       if (!email) {
